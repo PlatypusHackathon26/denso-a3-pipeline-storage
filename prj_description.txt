@@ -1,0 +1,14 @@
+Dự án này mục tiêu là làm sạch và lưu trữ dữ liệu.
+Có nhiều kiểu dữ liệu khác nhau như: pdf, image, excel,...
+
+Dự án có 3 thành viên làm: Long, Nam, Nhung
+Dự tính chia việc theo các kiểu dữ liệu đưa vào, mỗi người sẽ đảm nhiệm một số kiểu file.
+
+Cách teamwork:
+    0, mỗi parser sẽ được làm riêng 1 nhánh, và nhánh đó phải đặt tên chuẩn gồm (tên thành viên + loại paser), vd: nam-pdf, nhung-docx
+    1, Mỗi người làm loại parser nào thì chỉ làm trong folder đó thôi (thuộc parsers/...), trong này có cả test, nơi chứa input, output src.
+    2, Khi hoàn thiện phần parser đó thì push lên: chỉ push parser.py, test.py input_test(tuyệt đối ko push output test) và requirements.txt (vì nó chứa thư viện cần dùng)
+và nhớ là khi viết thư viện nào vào requirement nhớ comment bên cạnh là nó phục vụ cho parser nào.
+
+cách kiếm data src:
+    filetype:docx "technical report" OR "system specification"

@@ -1,25 +1,19 @@
-# Requirements cho denso-a3-pipeline-storage (skeleton).
-#
-# Ở giai đoạn này code chỉ dùng standard library (Python 3.10+), nên chưa có
-# dependency nào được bật. Khi implement từng parser, bỏ comment các dòng dưới
-# đây rồi chạy:  pip install -r requirements.txt
-#
-# --- PDF (parsers/pdf_parser.py) ---
-# pypdf>=5.0
-# pdfplumber>=0.11
-# pytesseract>=0.3.13        # OCR cho PDF scan, cần cài thêm Tesseract binary
-# pdf2image>=1.17            # render trang PDF -> ảnh trước khi OCR
-#
-# --- Excel (parsers/excel_parser.py) ---
-# openpyxl>=3.1
-# pandas>=2.2
-# xlrd>=2.0.1                # chỉ cần nếu đọc file .xls cũ
-#
-# --- Audio (parsers/audio_parser.py) ---
-# faster-whisper>=1.0
-# ffmpeg-python>=0.2.0       # cần ffmpeg binary trong PATH
-#
-# --- Tiện ích chung (utils/) ---
-# langdetect>=1.0.9          # utils/lang_detector.py (có fallback nếu thiếu)
-# unidecode>=1.3.8
-# tqdm>=4.66                 # progress bar cho pipeline
+# Core pipeline & Schemas
+pydantic>=2.0.0
+
+# PDF Engine (Docling / Fallbacks)
+pdfplumber>=0.11.0
+pillow>=10.0.0
+
+# Xberg Engine (Office, Text, Code)
+python-docx>=1.1.0
+openpyxl>=3.1.0
+pandas>=2.0.0
+tabulate>=0.9.0
+
+# Utils (Language detection & cleaning)
+langdetect>=1.0.9
+
+# Testing
+pytest>=8.0.0
+
