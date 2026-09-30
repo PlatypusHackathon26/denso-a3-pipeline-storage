@@ -85,17 +85,129 @@ def test_xberg_docx_parser(tmp_path):
 
 def test_xberg_excel_parser(tmp_path):
     engine = XbergEngine()
+
     excel_file = tmp_path / "inventory_data.xlsx"
-    df = pd.DataFrame({"Linh kiện": ["Cảm biến A", "Bơm dầu B"], "Mã": ["CB-01", "BD-02"]})
+
+    df = pd.DataFrame(
+        {
+            "Linh kiện": ["Cảm biến A", "Bơm dầu B", "Van C"],
+            "Mã": ["CB-01", "BD-02", None],
+            "Thông số": ["0.5 MPa", None, "45.5 °C"],
+        }
+    )
+
     df.to_excel(excel_file, index=False)
 
     doc = engine.parse(excel_file, access_level=3)
+
+    # 1. Kiểu dữ liệu output
     assert isinstance(doc, ProcessedDocument)
+
+    # 2. Metadata
+    assert doc.metadata.source_file == "inventory_data.xlsx"
     assert doc.metadata.source_type == "xlsx"
     assert doc.metadata.access_level == 3
+
+    # 3. Có đúng 1 bảng
     assert len(doc.tables) == 1
-    assert doc.tables[0].table_id.endswith("_t1")
-    assert "Cảm biến A" in doc.tables[0].markdown
+
+    table = doc.tables[0]
+
+    # 4. Thông tin bảng
+    assert table.table_id.endswith("_t1")
+    assert table.total_rows == 3
+    assert table.total_cols == 3
+
+    # 5. Nội dung không bị mất
+    assert "Cảm biến A" in table.markdown
+    assert "CB-01" in table.markdown
+    assert "0.5 MPa" in table.markdown
+    assert "45.5 °C" in table.markdown
+
+    # 6. Cell rỗng không được biến thành "nan"
+    assert "nan" not in table.markdown.lower()
+    assert "nan" not in doc.cleaned_text.lower()
+
+    # 7. Markdown phải là dạng compact
+    assert "| --- | --- | --- |" in table.markdown
+
+def test_xberg_excel_multiple_sheets(tmp_path):
+    engine = XbergEngine()
+
+    excel_file = tmp_path / "multi_sheet.xlsx"
+
+    error_df = pd.DataFrame(
+        {
+            "Mã lỗi": ["ERR-305", "ERR-401"],
+            "Nguyên nhân": ["Kẹt van", "Quá nhiệt"],
+        }
+    )
+
+    qc_df = pd.DataFrame(
+        {
+            "Thông số": ["Áp suất dầu", "Nhiệt độ"],
+            "Giá trị": ["0.5 MPa", "45 °C"],
+        }
+    )
+
+    parameter_df = pd.DataFrame(
+        {
+            "Tên": ["Voltage", "Rating"],
+            "Giá trị": [12, 2.0],
+        }
+    )
+
+    with pd.ExcelWriter(excel_file) as writer:
+        error_df.to_excel(writer, sheet_name="Error Codes", index=False)
+        qc_df.to_excel(writer, sheet_name="QC Checklist", index=False)
+        parameter_df.to_excel(writer, sheet_name="Parameters", index=False)
+
+    doc = engine.parse(excel_file, access_level=1)
+
+    # Excel có 3 sheet -> phải có 3 table
+    assert len(doc.tables) == 3
+
+    # Kiểm tra từng sheet
+    assert doc.tables[0].caption == "Bảng: Error Codes"
+    assert doc.tables[1].caption == "Bảng: QC Checklist"
+    assert doc.tables[2].caption == "Bảng: Parameters"
+
+    # Kiểm tra dữ liệu thực tế
+    assert "ERR-305" in doc.tables[0].markdown
+    assert "Áp suất dầu" in doc.tables[1].markdown
+    assert "Voltage" in doc.tables[2].markdown
+
+def test_xberg_csv_parser(tmp_path):
+    engine = XbergEngine()
+
+    csv_file = tmp_path / "error_codes.csv"
+
+    df = pd.DataFrame(
+        {
+            "Mã lỗi": ["ERR-305", "ERR-401"],
+            "Nguyên nhân": ["Kẹt van", "Quá nhiệt"],
+            "Cách xử lý": ["Xả van 2 vòng", "Kiểm tra bơm"],
+        }
+    )
+
+    df.to_csv(csv_file, index=False, encoding="utf-8-sig")
+
+    doc = engine.parse(csv_file, access_level=1)
+
+    assert isinstance(doc, ProcessedDocument)
+    assert doc.metadata.source_type == "csv"
+    assert len(doc.tables) == 1
+
+    table = doc.tables[0]
+
+    assert table.total_rows == 2
+    assert table.total_cols == 3
+
+    assert "ERR-305" in table.markdown
+    assert "Kẹt van" in table.markdown
+    assert "Xả van 2 vòng" in table.markdown
+
+    assert "nan" not in table.markdown.lower()
 
 
 def test_storage_save_document(tmp_path, monkeypatch):

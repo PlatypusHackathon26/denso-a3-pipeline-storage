@@ -200,22 +200,81 @@ class XbergEngine(BaseEngine):
 
 
     def _parse_tabular(
-        self,
-        file_path: Path,
-        access_level: int,
-        doc_id: str,
-        file_hash: str,
-        file_size_kb: float,
-        factory_code: str,
-        doc_type: str,
+    self,
+    file_path: Path,
+    access_level: int,
+    doc_id: str,
+    file_hash: str,
+    file_size_kb: float,
+    factory_code: str,
+    doc_type: str,
     ) -> ProcessedDocument:
+        """
+        Parse Excel/CSV into structured TableItem objects.
+
+        Improvements over the old implementation:
+        1. Empty Excel cells are represented as "" instead of "nan".
+        2. Markdown is generated manually to avoid the huge column-padding
+        produced by pandas.to_markdown().
+        3. Newlines and "|" inside cells are escaped so the Markdown table
+        structure is not broken.
+        """
+
+        def dataframe_to_compact_markdown(dataframe: pd.DataFrame) -> str:
+            """Convert a DataFrame to compact, stable Markdown."""
+            # Normalize column names
+            headers = []
+            for col in dataframe.columns:
+                header = str(col)
+                header = header.replace("\r\n", " ")
+                header = header.replace("\n", " ")
+                header = header.replace("\r", " ")
+                header = header.replace("|", r"\|")
+                header = header.strip()
+                headers.append(header)
+
+            # Header + separator
+            lines = [
+                "| " + " | ".join(headers) + " |",
+                "| " + " | ".join(["---"] * len(headers)) + " |",
+            ]
+
+            # Data rows
+            for row in dataframe.itertuples(index=False, name=None):
+                values = []
+
+                for value in row:
+                    # NaN / NaT / None -> empty string
+                    if value is None or pd.isna(value):
+                        text = ""
+                    else:
+                        text = str(value)
+
+                    # Keep each cell on one Markdown line
+                    text = text.replace("\r\n", " ")
+                    text = text.replace("\n", " ")
+                    text = text.replace("\r", " ")
+
+                    # Escape Markdown separator character
+                    text = text.replace("|", r"\|")
+
+                    text = text.strip()
+                    values.append(text)
+
+                lines.append("| " + " | ".join(values) + " |")
+
+            return "\n".join(lines)
+
         ext = file_path.suffix.lower()
+
         tables: List[TableItem] = []
         text_summaries: List[str] = []
 
         if ext == ".csv":
             df = pd.read_csv(file_path)
-            md_tbl = df.to_markdown(index=False)
+
+            md_tbl = dataframe_to_compact_markdown(df)
+
             tables.append(
                 TableItem(
                     table_id=f"{doc_id}_t1",
@@ -226,14 +285,25 @@ class XbergEngine(BaseEngine):
                     markdown=md_tbl,
                 )
             )
-            text_summaries.append(f"Sheet: default\n{md_tbl}")
+
+            text_summaries.append(
+                f"Sheet: default\n{md_tbl}"
+            )
+
             total_sheets = 1
+
         else:
             excel_file = pd.ExcelFile(file_path)
             total_sheets = len(excel_file.sheet_names)
+
             for idx, sheet_name in enumerate(excel_file.sheet_names, start=1):
-                df = pd.read_excel(excel_file, sheet_name=sheet_name)
-                md_tbl = df.to_markdown(index=False)
+                df = pd.read_excel(
+                    excel_file,
+                    sheet_name=sheet_name,
+                )
+
+                md_tbl = dataframe_to_compact_markdown(df)
+
                 tables.append(
                     TableItem(
                         table_id=f"{doc_id}_t{idx}",
@@ -244,9 +314,15 @@ class XbergEngine(BaseEngine):
                         markdown=md_tbl,
                     )
                 )
-                text_summaries.append(f"Sheet: {sheet_name}\n{md_tbl}")
 
-        combined_text = clean_text("\n\n".join(text_summaries))
+                text_summaries.append(
+                    f"Sheet: {sheet_name}\n{md_tbl}"
+                )
+
+        combined_text = clean_text(
+            "\n\n".join(text_summaries)
+        )
+
         return ProcessedDocument(
             doc_id=doc_id,
             metadata=DocMetadata(
