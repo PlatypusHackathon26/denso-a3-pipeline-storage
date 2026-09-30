@@ -16,6 +16,7 @@ from core.storage import Storage, storage
 from engines.docling_engine import DoclingEngine
 from engines.xberg_engine import XbergEngine
 from schemas.document import ProcessedDocument
+from utils.lang_detector import detect_language, SUPPORTED_LANGS
 
 
 def test_hasher():
@@ -388,4 +389,40 @@ def test_docling_fallback_extracts_images_and_filters_tables(tmp_path, monkeypat
     assert doc.tables[0].total_cols == 2
     assert "Áp suất" in doc.tables[0].markdown
 
+def test_language_detection_english():
+    text = """
+    Applications
+    Section
+    Page
+    Brand
+    Model
+    Engine
+    Fuel
+    Power
+    Application Date
+    Denso Part Number
+    Voltage
+    Rating
+    """
 
+    assert detect_language(text) == "en"
+
+def test_language_detection_vietnamese():
+    text = """
+    Bảng thông số kỹ thuật
+    Áp suất dầu
+    Nhiệt độ động cơ
+    Mã lỗi thiết bị
+    """
+
+    assert detect_language(text) == "vi"
+
+def test_language_detection_supported_language_only():
+    text = """
+    Applications Brand Model Engine Fuel Power
+    Denso Part Number Voltage Rating
+    """
+
+    result = detect_language(text)
+
+    assert result in SUPPORTED_LANGS

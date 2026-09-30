@@ -50,36 +50,97 @@ def _count_chars(text: str) -> Dict[str, int]:
 
 
 def detect_language(text: str, default: str = DEFAULT_LANG) -> str:
-    """Trả về mã ngôn ngữ ISO 639-1 ngắn gọn (``vi``/``en``/``ja``/...).
+    """Phát hiện ngôn ngữ và chỉ trả về ngôn ngữ được project hỗ trợ."""
 
-    Args:
-        text: văn bản đã clean (nên gọi ``text_cleaner.clean_text`` trước).
-        default: giá trị trả về khi không đủ dữ liệu để kết luận.
-
-    Returns:
-        Mã ngôn ngữ hoặc ``default`` nếu text rỗng/không nhận dạng được.
-    """
     if not text or not text.strip():
         return default
 
-    try:  # pragma: no cover - chỉ chạy khi môi trường có langdetect
+    # 1. Heuristic trước cho các hệ chữ dễ nhận biết.
+    heuristic_lang = _detect_by_heuristic(text, default=default)
+
+    # Nếu heuristic nhận ra một ngôn ngữ đặc trưng thì dùng luôn.
+    if heuristic_lang in {"vi", "ja", "ko", "zh", "th"}:
+        return heuristic_lang
+
+    # 2. Dùng langdetect cho nhóm Latin (chủ yếu en).
+    try:
         from langdetect import detect  # type: ignore
 
-        return detect(text)
+        detected = detect(text)
+
+        # Chỉ chấp nhận kết quả nằm trong contract của project.
+        if detected in SUPPORTED_LANGS:
+            return detected
+
+        # Ví dụ:
+        # langdetect -> "de"
+        # "de" không được project hỗ trợ
+        # -> fallback về heuristic
+        return heuristic_lang
+
     except Exception:
-        return _detect_by_heuristic(text, default=default)
+        return heuristic_lang
 
 
-def _detect_by_heuristic(text: str, *, default: str = DEFAULT_LANG) -> str:
-    """Fallback không cần dependency: ưu tiên chữ viết CJK/Thai rồi tới Latin."""
+def _detect_by_heuristic(
+    text: str,
+    *,
+    default: str = DEFAULT_LANG,
+) -> str:
+    """Fallback language detection không cần dependency."""
+
     counts = _count_chars(text)
+
+    # Các hệ chữ có đặc trưng rõ ràng.
     for lang in ("ja", "ko", "th", "zh"):
         if counts[lang] >= 5:
             return lang
 
     latin = counts["latin"]
-    if latin >= 10:
-        return "vi" if counts["vi_mark"] / latin >= 0.02 else "en"
+
+    if latin < 10:
+        return default
+
+    # Tiếng Việt
+    vi_ratio = counts["vi_mark"] / latin
+    if vi_ratio >= 0.02:
+        return "vi"
+
+    # Với text Latin không có dấu Việt, tìm một số từ tiếng Anh phổ biến.
+    words = set(
+        re.findall(
+            r"\b[a-zA-Z]{2,}\b",
+            text.lower(),
+        )
+    )
+
+    english_keywords = {
+        "the",
+        "and",
+        "or",
+        "application",
+        "applications",
+        "engine",
+        "fuel",
+        "power",
+        "model",
+        "brand",
+        "options",
+        "voltage",
+        "rating",
+        "page",
+        "section",
+        "part",
+        "number",
+        "date",
+        "starter",
+    }
+
+    english_hits = len(words & english_keywords)
+
+    if english_hits >= 2:
+        return "en"
+
     return default
 
 
